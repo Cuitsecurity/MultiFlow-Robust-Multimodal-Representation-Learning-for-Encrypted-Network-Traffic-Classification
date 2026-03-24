@@ -1,165 +1,201 @@
-# MultiFlow: Robust Multimodal Representation Learning for Encrypted Network Traffic Classification
+# MultiFlow Source Code Documentation
 
-MultiFlow is a framework for multimodal representation learning and classification of encrypted network traffic. This repository contains the core source code, including data processing, preprocessing, and model training modules.
-
----
-
-## Table of Contents
-
-- [Overview](#overview)
-- [Directory Structure](#directory-structure)
-- [Modules](#modules)
-  - [Data Processing (`data/`)](#1-data-processing-data)
-  - [Preprocessing (`preprocessing/`)](#2-preprocessing-preprocessing)
-  - [Model Training (`models/`)](#3-model-training-models)
-- [Data Pipeline](#data-pipeline)
-- [Dependencies](#dependencies)
-- [Usage](#usage)
-- [Key Features](#key-features)
-- [Notes](#notes)
-- [Citation](#citation)
-
----
-
-## Overview
-
-MultiFlow is designed to extract multimodal features from encrypted network traffic and train models for traffic classification. It combines statistical flow features and payload content features, using Word2Vec embeddings and Bigram representations to achieve robust classification even on encrypted flows.
-
----
+This directory contains the core source code of the MultiFlow project, used for multimodal representation learning and classification of encrypted network traffic. The project adopts a modular design, divided into three main parts: data processing, preprocessing, and models.
 
 ## Directory Structure
-```text
+
+```
 src/
 ├── data/                          # Data processing module
-│   ├── build_vocab.py             # Build attribute-value vocabulary and embedding matrix
-│   ├── extract_stats_features.py  # Extract statistical features of network flows
+│   ├── build_vocab.py            # Build attribute value vocabulary and embedding matrix
+│   ├── extract_stats_features.py  # Extract network flow statistical features
 │   └── extract_stats_payload.py   # Extract network packet payload features
 ├── preprocessing/                 # Data preprocessing module
-│   └── split_dataset.py           # Split and process network flows
+│   └── split_dataset.py           # Network flow splitting and processing
 └── models/                        # Model training module
     └── train.py                   # Model training script
----
-
-## Modules
-
-### 1. Data Processing (`data/`)
-
-#### `build_vocab.py` — Build Attribute-Value Vocabulary and Embedding Matrix
-
-**Functionality:**
-- Build a Word2Vec vocabulary from CSV network flow attribute data
-- Generate embedding vectors for attribute values
-- Output vocabulary and embedding data for downstream use
-
-**Main Class:** `AttributeEmbedding`  
-
-**Key Methods:** `__init__()`, `load_corpus()`, `get_vector()`  
-
-**Input:** CSV file containing network flow sequences  
-**Output:** Vocabulary (`.pkl`), embedding matrix (`.npy`), Word2Vec model
+```
 
 ---
 
-#### `extract_stats_features.py` — Extract Statistical Features
+## Module Details
 
-**Functionality:**  
-- Parse PCAP files and extract flow-level statistical features: lengths, directions, inter-arrival times (IAT)  
-- Batch processing of multiple files
+### 1. Data Processing Module (`data/`)
 
-**Input:** PCAP file  
-**Output:** CSV containing lengths, directions, IATs
+#### `build_vocab.py` - Attribute Value Vocabulary and Embedding Matrix Construction
+
+**Function:**
+- Build Word2Vec vocabulary from CSV-formatted network flow attribute data
+- Generate embedding vector matrix for attribute values
+- Output dictionary and embedding data for subsequent use
+
+**Main Classes:**
+
+```python
+class AttributeEmbedding
+```
+
+**Core Methods:**
+- `__init__()`: Initialize, load corpus, train Word2Vec model, generate embedding matrix
+- `load_corpus()`: Load corpus from CSV file, each sequence retains at most 40 packets' attribute values
+- `get_vector()`: Query embedding vector for specified token
+
+**Input:**
+- CSV file: Contains sequences of network packet attribute values (comma-separated)
+
+**Output:**
+- `{prefix}_dict.pkl`: Word2Vec dictionary (token→index mapping)
+- `{prefix}_embedding.npy`: Embedding matrix (numpy array format)
+- `{prefix}_word2vec.model`: Word2Vec model file
+
+**Configuration Parameters:**
+- `embedding_dim`: Embedding dimension (default 300)
+- `window`: Word2Vec context window size (default 5)
+- `max_packets`: Maximum number of packets extracted per flow (default 40)
 
 ---
 
-#### `extract_stats_payload.py` — Extract Payload Features
+#### `extract_stats_features.py` - Network Flow Statistical Feature Extraction
 
-**Functionality:**  
-- Extract payload content as Bigram features  
-- Combine with statistical features
+**Function:**
+- Parse network flows from PCAP files
+- Extract statistical features of network flows: packet length, packet direction, inter-arrival time (IAT)
+- Batch process multiple PCAP files
 
-**Input:** PCAP file  
-**Output:** CSV file with labels, lengths, directions, IATs, payloads
+**Main Functions:**
+
+| Function Name | Description |
+|---------------|-------------|
+| `get_flow_features(pcap_path)` | Extract features of a single flow from PCAP file |
+| `append_csv(path, rows)` | Batch append row data to CSV file |
+| `mark_processed()` | Mark processed PCAP files |
+| `get_processed_pcapfile()` | Read log of processed files |
+
+**Extracted Features:**
+- **Lengths**: Byte length of each packet (absolute value)
+- **Directions**: Packet transmission direction (1 for uplink, -1 for downlink)
+- **IATs**: Inter-arrival time intervals (milliseconds × 100, for easier discretization)
+
+**Input:**
+- PCAP files (network packet capture files)
+
+**Output:**
+- CSV format: Contains flow features of lengths, directions, iats
+
+**Configuration Parameters:**
+- `max_packets`: Maximum number of packets extracted per flow (default 40)
+- `BATCH_SIZE`: File batch processing size (default 100)
+- `NUM_WORKERS`: Number of multiprocess worker threads
 
 ---
 
-### 2. Preprocessing (`preprocessing/`)
+#### `extract_stats_payload.py` - Network Packet Payload Feature Extraction
 
-#### `split_dataset.py` — Split and Process Network Flows
+**Function:**
+- Extract actual payload data of network packets from PCAP files
+- Use Bigram features to represent packet content
+- Simultaneously extract statistical features (length, direction, IAT)
 
-**Functionality:**  
-- Parse TCP connections from PCAP files  
-- Normalize flows and split multi-connection sessions  
-- Generate normalized five-tuples  
+**Main Functions:**
 
-**Input:** PCAP file  
-**Output:** Split PCAP files  
+| Function Name | Description |
+|---------------|-------------|
+| `get_flow_features(pcap_path)` | Extract complete features of flow (statistics + Payload) |
+| `bigram_generation()` | Generate Bigram features for packet data |
+| `mark_processed()` | Mark processed files |
+| `cut()` | Process data in chunks |
+
+**Extracted Features:**
+- **Lengths**: Packet lengths
+- **Directions**: Transmission directions
+- **IATs**: Inter-packet time intervals
+- **Payloads**: Bigram feature sequences of packet content
+
+**Input:**
+- PCAP files
+
+**Output:**
+- CSV format: label, lengths, directions, iats, payloads
+
+**Configuration Parameters:**
+- `max_packets`: Maximum number of packets per flow (default 40)
+- `payload_len`: Length of individual packet payload string (default 64 characters)
+- `payload_pac`: Number of packets extracted per flow (default 10)
+- `MAX_FLOWS_PER_LABEL`: Maximum number of flows per label (default 500)
+- `NUM_WORKERS`: Number of threads (default 64)
 
 ---
 
-### 3. Model Training (`models/`)
+### 2. Preprocessing Module (`preprocessing/`)
 
-#### `train.py` — Model Training Script
+#### `split_dataset.py` - Network Flow Splitting and Processing
 
-**Functionality:**  
-- Train multimodal network traffic classification model  
-- Fuse statistical and payload features  
-- Evaluate model performance
+**Function:**
+- Parse and split network TCP connections from PCAP files
+- Implement flow-level segmentation, handle multi-connection scenarios
+- Generate normalized five-tuple identifiers
+
+**Main Functions:**
+
+| Function Name | Description |
+|---------------|-------------|
+| `get_normalized_five_tuple(pkt)` | Generate normalized five-tuple (src_ip, src_port, dst_ip, dst_port, protocol) |
+| `split_multiple_connections_in_session()` | Split multiple independent TCP connections under the same five-tuple |
+| `is_timestamp_interval_gt()` | Check if timestamp interval exceeds threshold |
+| `create_folder_if_not_exists()` | Create output directory |
+| `split_complete_flows()` | Complete flow splitting main process |
+
+**Key Features:**
+
+1. **Flow Normalization**: 
+   - Bidirectional traffic (A→B and B→A) attributed to the same flow
+   - Sort IP+Port combinations in lexicographical order
+
+2. **TCP Connection Splitting**:
+   - Identify connection start by TCP three-way handshake (pure SYN packets)
+   - Identify connection end by FIN/RST packets
+   - Filter out invalid connections with fewer than 3 packets
+
+3. **Time Interval Segmentation**:
+   - Further split flows based on packet timestamp differences (`time_step` parameter)
+   - Avoid mixing data from different time periods in one flow
+
+**Input:**
+- PCAP files
+
+**Output:**
+- Split PCAP files, stored in specified output directory
+- Filename format: `{prefix}-{src_ip}_{src_port}_{dst_ip}_{dst_port}_{protocol}_{flow_count}.pcap`
+
+**Configuration Parameters:**
+- `time_step`: Timestamp interval threshold (default 15 seconds)
+- `output_dir`: Output directory path
+
+---
+
+### 3. Model Training Module (`models/`)
+
+#### `train.py` - Model Training Script
+
+**Function:**
+- Train multimodal network traffic classification model
+- Support multiple input features (statistical features, payload features)
+- Implement model optimization and performance evaluation
+
+**Expected Functionality:**
+- Use previously generated vocabulary and embedding matrix
+- Fuse multiple feature modalities (statistical features + payload features)
+- Train classifier to distinguish different network applications/protocols
 
 ---
 
 ## Data Pipeline
-```text
+
+```
 PCAP files (raw network packets)
-↓
-[preprocessing/split_dataset.py] → Split and normalize flows
-↓
+    ↓
+[preprocessing/split_dataset.py] ← Flow splitting and normalization
+    ↓
 Split PCAP files
-↓
-[data/extract_stats_features.py] → Statistical features
-[data/extract_stats_payload.py]  → Payload features
-↓
-CSV feature files
-↓
-[data/build_vocab.py] → Vocabulary + embeddings
-↓
-[models/train.py] → Train classification model
-↓
-Trained model
----
-
-## Dependencies
-
-```bash
-pandas
-numpy
-gensim        # Word2Vec embedding
-scapy         # Packet parsing
-flowcontainer # Flow extraction
-scikit-learn  # Model training
-Usage
-	1.	Split PCAP flows
-python src/preprocessing/split_dataset.py
-	2.	Extract network features
-# Option A: Statistical features only
-python src/data/extract_stats_features.py
-
-# Option B: Statistical + Payload features
-python src/data/extract_stats_payload.py
-	3.	Build vocabulary and embeddings
-python src/data/build_vocab.py
-    4.	Train the model
-python src/models/train.py
-
-Key Features
-	•	Multimodal feature fusion: statistical + payload features
-	•	Robust flow splitting: supports bi-directional flows and multi-connection sessions
-	•	Efficient representation: Word2Vec embeddings + Bigram payloads
-	•	Encrypted traffic friendly: no payload decryption required
-
-⸻
-
-Notes
-	•	Update input/output paths in scripts as needed
-	•	Adjust NUM_WORKERS for system resources
-	•	Minimum 5 packets per flow for processing
-	•	IAT features are multiplied by 100 for discretization
+    ↓</content>
+<parameter name="filePath">/workspaces/MultiFlow-Robust-Multimodal-Representation-Learning-for-Encrypted-Network-Traffic-Classification/src/README_EN.md
