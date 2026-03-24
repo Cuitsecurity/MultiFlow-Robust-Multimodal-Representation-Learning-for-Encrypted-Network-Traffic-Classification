@@ -28,6 +28,7 @@ MultiFlow is designed to extract multimodal features from encrypted network traf
 ---
 
 ## Directory Structure
+```text
 src/
 ├── data/                          # Data processing module
 │   ├── build_vocab.py             # Build attribute-value vocabulary and embedding matrix
@@ -36,7 +37,7 @@ src/
 ├── preprocessing/                 # Data preprocessing module
 │   └── split_dataset.py           # Split and process network flows
 └── models/                        # Model training module
-└── train.py                   # Model training script
+    └── train.py                   # Model training script
 ---
 
 ## Modules
@@ -107,6 +108,7 @@ src/
 ---
 
 ## Data Pipeline
+```text
 PCAP files (raw network packets)
 ↓
 [preprocessing/split_dataset.py] → Split and normalize flows
